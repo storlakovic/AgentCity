@@ -3,6 +3,93 @@
 #include <algorithm>
 #include <random>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <limits>
+#include <nlohmann/json.hpp>
+#include <stdexcept>
+
+void neural_network::save(const std::string& path) {
+    if (layers.empty()) {
+        throw std::runtime_error("Cannot save an uninitialized neural network");
+    }
+    nlohmann::json model = {
+        {"format_version", 1},
+        {"architecture", {layers.front().get_input_count()}},
+        {"hidden_activation", "sigmoid"},
+        {"output_activation", "softmax"},
+        {"layers", nlohmann::json::array()}
+    };
+    for (auto& current_layer : layers) {
+        auto weights = current_layer.get_weights();
+        std::vector<double> biases;
+        for (std::size_t i = 0; i < current_layer.get_neuron_count(); ++i) {
+            biases.push_back(current_layer.get_bias_at(i));
+        }
+
+        model["architecture"].push_back(current_layer.get_neuron_count());
+        model["layers"].push_back({{"weights", weights}, {"biases", biases}});
+    }
+    const std::string json = model.dump(2);
+
+    const std::filesystem::path temporary_path = path + ".tmp";
+    try {
+        std::ofstream file;
+        file.exceptions(std::ios::failbit | std::ios::badbit);
+        file.open(temporary_path, std::ios::binary | std::ios::trunc);
+        file << json;
+        file.close();
+        std::filesystem::rename(temporary_path, path);
+    } catch (...) {
+        std::error_code ignored;
+        std::filesystem::remove(temporary_path, ignored);
+        throw;
+    }
+}
+
+void neural_network::load(const std::string& path) {
+    std::ifstream file(path);
+    if (!file) throw std::runtime_error("Cannot open model: " + path);
+    const auto model = nlohmann::json::parse(file);
+
+    const auto& architecture = model.at("architecture");
+    const auto& saved_layers = model.at("layers");
+    std::vector<std::size_t> sizes;
+    for (const auto& size : architecture) {
+        sizes.push_back(size.get<std::size_t>());
+    }
+
+    std::vector<layer> loaded_layers;
+    for (std::size_t i = 0; i < saved_layers.size(); ++i) {
+        const auto inputs = sizes[i], neurons = sizes[i + 1];
+        const auto& weights = saved_layers[i].at("weights");
+        const auto& biases = saved_layers[i].at("biases");
+
+        auto parameter = [](const nlohmann::json& value) {
+            return value.get<double>();
+        };
+
+        layer current_layer(inputs, neurons);
+
+        current_layer.init_activations(neurons);
+        current_layer.init_biases(neurons);
+        current_layer.init_weights(inputs * neurons);
+        current_layer.init_gradients(inputs * neurons);
+        current_layer.init_deltas(neurons);
+
+        for (std::size_t j = 0; j < weights.size(); ++j) {
+            current_layer.set_weight_at(j, parameter(weights[j]));
+        }
+        for (std::size_t j = 0; j < biases.size(); ++j) {
+            current_layer.set_bias_at(j, parameter(biases[j]));
+        }
+
+        loaded_layers.push_back(std::move(current_layer));
+    }
+
+    layers = std::move(loaded_layers);
+    last_input.clear();
+}
 
 void neural_network::initialize(const std::vector<std::size_t> &architecture) {
     for (std::size_t i = 1; i < architecture.size(); i++) {
@@ -115,6 +202,19 @@ double neural_network::random_number() {
     static std::uniform_real_distribution<double> distribution(
         -1.0,
         1.0
+    );
+
+    return distribution(generator);
+}
+
+double neural_network::random_number(double min, double max) {
+    static std::mt19937 generator(
+        std::random_device{}()
+    );
+
+    std::uniform_real_distribution<double> distribution(
+        min,
+        max
     );
 
     return distribution(generator);

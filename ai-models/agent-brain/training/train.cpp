@@ -6,65 +6,100 @@
 #include "../brain/neural_network.hpp"
 
 #include <vector>
+
+#include "config.hpp"
 #include "../environment/environment.hpp"
 #include "experience.hpp"
 
+void train::train_agent() {
+    environment env(state(0.5, 0.5, 1.0, 0.5));
+    double best_avg_reward = evaluate_network(env);
+    std::cout << "Initial evaluation | Avg reward: " << best_avg_reward << '\n';
 
-void train::train_agent(int epochs, double learning_rate) {
-    environment env( state(0.5, 0.5, 1.0));
-    for (int epoch = 0; epoch < epochs; epoch++) {
+    for (int epoch = 0; epoch < config::epochs; epoch++) {
         std::vector<experience> trajectory;
-        state current_state = env.reset();
-        bool done = false;
-        double total_reward = 0.0;
+        const auto result = collect_experiences(trajectory, env);
+        update_network(trajectory);
 
-        for (int step = 0; step < 100 && !done; step++) {
-            std::vector<double> probabilities = neural_network::forward(current_state.to_vector());
-
-            action selected_action = sample_action(probabilities);
-
-            step_result result = env.step(selected_action);
-
-            trajectory.push_back({current_state.to_vector(), static_cast<std::size_t>(selected_action), result.reward});
-
-            total_reward += result.reward;
-
-            current_state = result.new_state;
-            done = result.done;
+        if ((epoch + 1) % config::log_interval == 0) {
+            std::cout << "Episode " << epoch + 1
+                      << " | Reward: " << result.reward
+                      << " | Survived: " << (result.survived ? "yes" : "no") << '\n';
         }
-        for (auto& exp : trajectory) {
-            std::vector<double> probabilities = neural_network::forward(exp.get_state());
-
-            std::vector<double> output_deltas(probabilities.size());
-
-            for (std::size_t output = 0; output < probabilities.size(); output++) {
-                double target = output == exp.get_action() ? 1.0 : 0.0;
-                output_deltas[output] = (probabilities[output] - target) * exp.get_reward();
+        if ((epoch + 1) % config::evaluation_interval == 0) {
+            const double avg_reward = evaluate_network(env);
+            std::cout << "Evaluation " << epoch + 1
+                      << " | Avg reward: " << avg_reward << '\n';
+            if (avg_reward > best_avg_reward) {
+                neural_network::save(config::checkpoint_path);
+                best_avg_reward = avg_reward;
+                std::cout << "Saved best model: " << config::checkpoint_path
+                          << " | Avg reward: " << best_avg_reward << '\n';
             }
-            const auto& current_state = exp.get_state();
-            if (epoch % 100 == 0) {
-                std::cout
-                    << "{ "
-                    << "\"hunger\": " << current_state[0] << ", "
-                    << "\"money\": " << current_state[1] << ", "
-                    << "\"moral\": " << current_state[2] << ", "
-                    << "\"action\": \""
-                    << action_to_string(exp.get_action()) << "\", "
-                    << "\"reward\": " << exp.get_reward()
-                    << " }\n";
-            }
-            neural_network::backward(output_deltas);
-
-            neural_network::update_weights(learning_rate);
-        }
-
-        if (epoch % 100 == 0) {
-            std::cout
-                << "Episode: " << epoch
-                << " Reward: " << total_reward
-                << '\n';
         }
     }
+}
+
+train::episode_result train::collect_experiences(std::vector<experience>& trajectory, environment& env) {
+    state current_state = env.reset();
+    bool done = false;
+    double total_reward = 0.0;
+    for (int step = 0; step < config::max_steps && !done; step++) {
+        std::vector<double> probabilities = neural_network::forward(current_state.to_vector());
+
+        action selected_action = sample_action(probabilities);
+
+        step_result result = env.step(selected_action);
+
+        trajectory.push_back({
+            current_state.to_vector(), static_cast<std::size_t>(selected_action), result.reward, 0.0
+        });
+
+        total_reward += result.reward;
+
+        current_state = result.new_state;
+        done = result.done;
+    }
+    return {total_reward, !done};
+}
+
+void train::update_network(std::vector<experience>& trajectory) {
+    double return_value = 0.0;
+
+    for (int i = static_cast<int>(trajectory.size()) - 1; i >= 0; i--) {
+        return_value = trajectory[i].get_reward() + config::gamma * return_value;
+        trajectory[i].set_return_value(return_value);
+    }
+
+    for (auto& exp : trajectory) {
+        std::vector<double> probabilities = neural_network::forward(exp.get_state());
+
+        std::vector<double> output_deltas(probabilities.size());
+
+        for (std::size_t output = 0; output < probabilities.size(); output++) {
+            double target = output == exp.get_action() ? 1.0 : 0.0;
+            output_deltas[output] = (probabilities[output] - target) * exp.get_return_value();
+        }
+        neural_network::backward(output_deltas);
+        neural_network::update_weights(config::learning_rate);
+    }
+}
+
+double train::evaluate_network(environment& env) {
+    double rewards = 0.0;
+    for (int i = 0; i < config::evaluation_episodes; i++) {
+        state test_state = env.reset();
+        for (int step = 0; step < config::max_steps; step++) {
+            std::vector<double> probabilities = neural_network::forward(test_state.to_vector());
+            step_result result = env.step(sample_action(probabilities));
+            rewards += result.reward;
+            test_state = result.new_state;
+            if (result.done) {
+                break;
+            }
+        }
+    }
+    return rewards / config::evaluation_episodes;
 }
 
 std::string train::action_to_string(std::size_t action_index) {
@@ -84,13 +119,12 @@ std::string train::action_to_string(std::size_t action_index) {
     return "UNKNOWN";
 }
 
-action train::sample_action(std::vector<double>& probabilities) {
+action train::sample_action(const std::vector<double>& probabilities) {
     static std::mt19937 generator(std::random_device{}());
 
-    std::discrete_distribution<std::size_t> distribution(probabilities.begin(),probabilities.end());
+    std::discrete_distribution<std::size_t> distribution(probabilities.begin(), probabilities.end());
 
     std::size_t index = distribution(generator);
 
     return static_cast<action>(index);
 }
-

@@ -12,7 +12,7 @@
 #include "experience.hpp"
 
 void train::train_agent() {
-    environment env(state(0.5, 0.5, 1.0, 0.5));
+    environment env(state(0.5, 0.5, 1.0, 0.5, location::HOME));
     double best_avg_reward = evaluate_network(env);
     std::cout << "Initial evaluation | Avg reward: " << best_avg_reward << '\n';
 
@@ -114,6 +114,12 @@ std::string train::action_to_string(std::size_t action_index) {
             return "STEAL";
         case action::SPEND_MONEY:
             return "SPEND_MONEY";
+        case action::GO_HOME:
+            return "GO_HOME";
+        case action::GO_TO_WORKPLACE:
+            return "GO_TO_WORKPLACE";
+        case action::GO_TO_SHOP:
+            return "GO_TO_SHOP";
     }
 
     return "UNKNOWN";

@@ -18,6 +18,7 @@ add_executable(agent_brain main.cpp
         environment/step_result.hpp
         training/experience.cpp
         training/experience.hpp
+        environment/location.hpp
 )
 
 target_include_directories(agent_brain PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/libs")

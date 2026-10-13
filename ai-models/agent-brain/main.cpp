@@ -10,7 +10,7 @@
 
 namespace {
     void run_model() {
-        environment env(state(0.5, 0.5, 1.0, 0.5));
+        environment env(state(0.5, 0.5, 1.0, 0.5, location::HOME));
         state current_state = env.reset();
         for (int step = 0; step < train::config::max_steps; step++) {
             const auto probabilities = neural_network::forward(current_state.to_vector());
@@ -42,7 +42,7 @@ int main() {
         std::cout << "Bitte run oder train eingeben.\n";
     }
     if (mode == "train") {
-        neural_network::initialize({4, 32, 16, 5});
+        neural_network::initialize({7, 32, 16, 8});
     } else {
         neural_network::load(train::config::checkpoint_path);
     }

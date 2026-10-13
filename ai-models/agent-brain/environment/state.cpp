@@ -2,11 +2,14 @@
 
 #include <vector>
 
-state::state(double hunger, double money, double moral, double energy){
+#include "location.hpp"
+
+state::state(double hunger, double money, double moral, double energy, location location){
     m_hunger = hunger;
     m_money = money;
     m_moral = moral;
     m_energy = energy;
+    m_location = location;
 }
 
 double state::get_hunger() const {
@@ -29,6 +32,14 @@ void state::set_energy(double energy) {
     m_energy = energy;
 }
 
+void state::set_location(location location) {
+    m_location = location;
+}
+
+location state::get_location() {
+    return m_location;
+}
+
 double state::get_energy() const {
     return m_energy;
 }
@@ -47,6 +58,9 @@ std::vector<double> state::to_vector() {
         m_money,
         m_moral,
         m_energy,
+        m_location == location::HOME ? 1.0 : 0.0,
+        m_location == location::WORKPLACE ? 1.0 : 0.0,
+        m_location == location::SHOP ? 1.0 : 0.0,
     };
 }
 

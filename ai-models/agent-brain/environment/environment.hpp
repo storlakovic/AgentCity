@@ -9,6 +9,7 @@ class environment {
 
 public:
     environment(state state);
+    double move(action selected_action);
     state reset();
     step_result step(action selected_action);
 };

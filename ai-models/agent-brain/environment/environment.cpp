@@ -8,14 +8,21 @@ environment::environment(state state) : m_state(state) {
 step_result environment::step(action selected_action) {
     double reward = 0.0;
     bool done = false;
-
     switch (selected_action) {
+        case action::GO_HOME:
+        case action::GO_TO_WORKPLACE:
+        case action::GO_TO_SHOP:
+            reward += move(selected_action);
+            break;
         case action::EAT: {
+            if (m_state.get_location() != location::SHOP ) {
+                reward -= 0.2;
+                break;
+            }
             if (m_state.get_money() <= 0.1) {
                 reward -= 0.3;
                 break;
             }
-
             double old_hunger = m_state.get_hunger();
 
             m_state.set_hunger(std::max(0.0, old_hunger - 0.4));
@@ -26,6 +33,10 @@ step_result environment::step(action selected_action) {
         }
 
         case action::WORK:
+            if (m_state.get_location() != location::WORKPLACE) {
+                reward -= 0.2;
+                break;
+            }
             if (m_state.get_energy() < 0.1) {
                 reward -= 0.3;
                 break;
@@ -37,6 +48,10 @@ step_result environment::step(action selected_action) {
             break;
 
         case action::SLEEP:
+            if (m_state.get_location() != location::HOME) {
+                reward -= 0.2;
+                break;
+            }
             if (m_state.get_energy() >= 0.9) {
                 reward -= 0.3;
                 break;
@@ -64,16 +79,44 @@ step_result environment::step(action selected_action) {
     if (m_state.get_hunger() >= 0.9) {
         reward -= 1.0;
     }
-
     if (m_state.get_hunger() >= 1.0) {
         done = true;
         reward -= 2.0;
     }
-
     return {m_state, reward, done};
 }
 
+double environment::move(action selected_action) {
+    double reward = 0.0;
+    switch (selected_action) {
+        case action::GO_HOME:
+            if (m_state.get_location() == location::HOME) {
+                reward -= 0.2;
+                break;
+            }
+            m_state.set_location(location::HOME);
+            break;
+        case action::GO_TO_WORKPLACE:
+            if (m_state.get_location() == location::WORKPLACE) {
+                reward -= 0.2;
+                break;
+            }
+            m_state.set_location(location::WORKPLACE);
+            break;
+        case action::GO_TO_SHOP:
+            if (m_state.get_location() == location::SHOP) {
+                reward -= 0.2;
+                break;
+            }
+            m_state.set_location(location::SHOP);
+            break;
+        default:
+            break;
+    }
+    return reward;
+}
+
 state environment::reset() {
-    m_state = state(neural_network::random_number(0.1, 1.0), neural_network::random_number(0.1, 1.0), 1.0, neural_network::random_number(0.1, 1.0));
+    m_state = state(neural_network::random_number(0.1, 1.0), neural_network::random_number(0.1, 1.0), 1.0, neural_network::random_number(0.1, 1.0), location::HOME);
     return m_state;
 }

@@ -5,7 +5,10 @@ enum class action {
     WORK,
     SLEEP,
     STEAL,
-    SPEND_MONEY
+    SPEND_MONEY,
+    GO_HOME,
+    GO_TO_WORKPLACE,
+    GO_TO_SHOP
 };
 
 

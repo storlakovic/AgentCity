@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "../environment/action.hpp"
+#include "../environment/state.hpp"
 
 class environment;
 class experience;
@@ -12,6 +13,8 @@ namespace train {
     struct episode_result {
         double reward = 0.0;
         bool survived = false;
+        std::vector<action> actions;
+        std::vector<state> states;
     };
 
     void train_agent();

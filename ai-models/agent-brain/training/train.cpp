@@ -10,6 +10,7 @@
 #include "config.hpp"
 #include "../environment/environment.hpp"
 #include "experience.hpp"
+#include "nlohmann/json.hpp"
 
 void train::train_agent() {
     environment env(state(0.5, 0.5, 1.0, 0.5, location::HOME));
@@ -18,13 +19,30 @@ void train::train_agent() {
 
     for (int epoch = 0; epoch < config::epochs; epoch++) {
         std::vector<experience> trajectory;
-        const auto result = collect_experiences(trajectory, env);
+        auto result = collect_experiences(trajectory, env);
         update_network(trajectory);
 
         if ((epoch + 1) % config::log_interval == 0) {
             std::cout << "Episode " << epoch + 1
                       << " | Reward: " << result.reward
-                      << " | Survived: " << (result.survived ? "yes" : "no") << '\n';
+                      << " | Survived: " << (result.survived ? "yes" : "no")
+                      << '\n';
+
+            for (std::size_t i = 0; i < result.states.size(); i++) {
+                std::cout << "State " << i << ": ";
+
+                for (double value : result.states[i].to_vector()) {
+                    std::cout << value << ' ';
+                }
+
+                if (i < result.actions.size()) {
+                    std::cout << "| Action: "
+                              << action_to_string(
+                                     static_cast<std::size_t>(result.actions[i]));
+                }
+
+                std::cout << '\n';
+            }
         }
         if ((epoch + 1) % config::evaluation_interval == 0) {
             const double avg_reward = evaluate_network(env);
@@ -44,6 +62,8 @@ train::episode_result train::collect_experiences(std::vector<experience>& trajec
     state current_state = env.reset();
     bool done = false;
     double total_reward = 0.0;
+    std::vector<state> states;
+    std::vector<action> selected_actions;
     for (int step = 0; step < config::max_steps && !done; step++) {
         auto mask = env.get_action_mask(current_state);
         std::vector<double> output_values = neural_network::forward(current_state.to_vector());
@@ -56,6 +76,9 @@ train::episode_result train::collect_experiences(std::vector<experience>& trajec
 
         action selected_action = sample_action(probabilities);
 
+        states.push_back(current_state);
+        selected_actions.push_back(selected_action);
+
         step_result result = env.step(selected_action);
 
         trajectory.push_back({
@@ -67,7 +90,7 @@ train::episode_result train::collect_experiences(std::vector<experience>& trajec
         current_state = result.new_state;
         done = result.done;
     }
-    return {total_reward, !done};
+    return {total_reward, !done, selected_actions, states};
 }
 
 void train::update_network(std::vector<experience>& trajectory) {

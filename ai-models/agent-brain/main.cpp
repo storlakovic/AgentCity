@@ -10,7 +10,7 @@
 
 namespace {
     void run_model() {
-        environment env(state(0.5, 0.5, 1.0, 0.5, location::HOME));
+        environment env(state(0.5, 0.5, 1.0, 0.5, 0.2, location::HOME));
         state current_state = env.reset();
         for (int step = 0; step < train::config::max_steps; step++) {
             auto output_values = neural_network::forward(current_state.to_vector());
@@ -27,6 +27,7 @@ namespace {
                     << " | Money: " << current_state.get_money()
                     << " | Hunger: " << current_state.get_hunger()
                     << " | Energy: " << current_state.get_energy()
+                    << " | Food: " << current_state.get_food()
                     << " | Action: " << train::action_to_string(static_cast<std::size_t>(selected_action))
                     << " | Reward: " << result.reward << '\n';
             current_state = result.new_state;
@@ -49,7 +50,7 @@ int main() {
         std::cout << "Bitte run oder train eingeben.\n";
     }
     if (mode == "train") {
-        neural_network::initialize({7, 32, 16, 8});
+        neural_network::initialize({8, 32, 16, 9});
         //neural_network::load(train::config::checkpoint_path);
     } else {
         neural_network::load(train::config::checkpoint_path);

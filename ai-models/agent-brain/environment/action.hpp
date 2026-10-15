@@ -6,6 +6,7 @@ enum class action {
     SLEEP,
     STEAL,
     SPEND_MONEY,
+    BUY_FOOD,
     GO_HOME,
     GO_TO_WORKPLACE,
     GO_TO_SHOP

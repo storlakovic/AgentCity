@@ -1,10 +1,11 @@
 #include "experience.hpp"
 
-experience::experience(std::vector<double> state, std::size_t action, double reward, double return_value) {
+experience::experience(std::vector<double> state, std::size_t action, double reward, double return_value, std::vector<bool> mask) {
     m_state = state;
     m_action = action;
     m_reward = reward;
     m_return_value = return_value;
+    m_mask = mask;
 }
 
 std::vector<double> experience::get_state() {
@@ -26,4 +27,9 @@ void experience::set_return_value(double return_value) {
 double experience::get_return_value() {
     return m_return_value;
 }
+
+std::vector<bool> experience::get_mask() {
+    return m_mask;
+}
+
 

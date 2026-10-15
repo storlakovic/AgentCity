@@ -1,7 +1,7 @@
 #include "train.hpp"
 
-#include <iostream>
 #include <random>
+#include <iostream>
 
 #include "../brain/neural_network.hpp"
 
@@ -45,14 +45,21 @@ train::episode_result train::collect_experiences(std::vector<experience>& trajec
     bool done = false;
     double total_reward = 0.0;
     for (int step = 0; step < config::max_steps && !done; step++) {
-        std::vector<double> probabilities = neural_network::forward(current_state.to_vector());
+        auto mask = env.get_action_mask(current_state);
+        std::vector<double> output_values = neural_network::forward(current_state.to_vector());
+        for (std::size_t i = 0; i < output_values.size(); i++) {
+            if (!mask[i]) {
+                output_values[i] = -1e9;
+            }
+        }
+        std::vector<double> probabilities = neural_network::softmax(output_values);
 
         action selected_action = sample_action(probabilities);
 
         step_result result = env.step(selected_action);
 
         trajectory.push_back({
-            current_state.to_vector(), static_cast<std::size_t>(selected_action), result.reward, 0.0
+            current_state.to_vector(), static_cast<std::size_t>(selected_action), result.reward, 0.0, mask
         });
 
         total_reward += result.reward;
@@ -72,11 +79,20 @@ void train::update_network(std::vector<experience>& trajectory) {
     }
 
     for (auto& exp : trajectory) {
-        std::vector<double> probabilities = neural_network::forward(exp.get_state());
-
+        std::vector<double> output_values = neural_network::forward(exp.get_state());
+        const auto mask = exp.get_mask();
+        for (std::size_t i = 0; i < output_values.size(); i++) {
+            if (!mask[i]) {
+                output_values[i] = -1e9;
+            }
+        }
+        std::vector<double> probabilities = neural_network::softmax(output_values);
         std::vector<double> output_deltas(probabilities.size());
 
         for (std::size_t output = 0; output < probabilities.size(); output++) {
+            if (!mask[output]) {
+                continue;
+            }
             double target = output == exp.get_action() ? 1.0 : 0.0;
             output_deltas[output] = (probabilities[output] - target) * exp.get_return_value();
         }
@@ -90,7 +106,14 @@ double train::evaluate_network(environment& env) {
     for (int i = 0; i < config::evaluation_episodes; i++) {
         state test_state = env.reset();
         for (int step = 0; step < config::max_steps; step++) {
-            std::vector<double> probabilities = neural_network::forward(test_state.to_vector());
+            auto mask = env.get_action_mask(test_state);
+            std::vector<double> output_values = neural_network::forward(test_state.to_vector());
+            for (std::size_t i = 0; i < output_values.size(); i++) {
+                if (!mask[i]) {
+                    output_values[i] = -1e9;
+                }
+            }
+            std::vector<double> probabilities = neural_network::softmax(output_values);
             step_result result = env.step(sample_action(probabilities));
             rewards += result.reward;
             test_state = result.new_state;

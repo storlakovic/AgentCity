@@ -13,7 +13,14 @@ namespace {
         environment env(state(0.5, 0.5, 1.0, 0.5, location::HOME));
         state current_state = env.reset();
         for (int step = 0; step < train::config::max_steps; step++) {
-            const auto probabilities = neural_network::forward(current_state.to_vector());
+            auto output_values = neural_network::forward(current_state.to_vector());
+            auto mask = env.get_action_mask(current_state);
+            for (std::size_t i = 0; i < output_values.size(); i++) {
+                if (!mask[i]) {
+                    output_values[i] = -1e9;
+                }
+            }
+            const auto probabilities = neural_network::softmax(output_values);
             const action selected_action = train::sample_action(probabilities);
             const step_result result = env.step(selected_action);
             std::cout << "Step " << step + 1
@@ -43,6 +50,7 @@ int main() {
     }
     if (mode == "train") {
         neural_network::initialize({7, 32, 16, 8});
+        //neural_network::load(train::config::checkpoint_path);
     } else {
         neural_network::load(train::config::checkpoint_path);
     }

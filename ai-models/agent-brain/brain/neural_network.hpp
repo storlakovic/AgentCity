@@ -13,7 +13,7 @@ namespace neural_network {
     extern void update_weights(double learning_rate);
     extern double random_number();
     extern double random_number(double min, double max);
-    extern std::vector<double> forward(const std::vector<double>& input);
+    extern std::vector<double> forward(const std::vector<double>& inputk);
     extern void backward(std::vector<double> output_deltas);
     extern double sigmoid(double x);
     std::vector<double> softmax( const std::vector<double>& values);

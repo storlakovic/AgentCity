@@ -10,6 +10,7 @@ class environment {
 public:
     environment(state state);
     double move(action selected_action);
+    std::vector<bool> get_action_mask(state& current_state);
     state reset();
     step_result step(action selected_action);
 };

@@ -119,15 +119,9 @@ std::vector<double> neural_network::forward(const std::vector<double>& input) {
                 sum += previous_activations.at(j) * layer.get_weight_at(weight_index);
             }
             if (is_output_layer) {
-                output_values.push_back(sum);
+                layer.set_activation(i,sum);
             } else {
                 layer.set_activation(i,sigmoid(sum));
-            }
-        }
-        if (is_output_layer) {
-            std::vector<double> probabilities = softmax(output_values);
-            for (std::size_t i = 0; i < probabilities.size(); i++) {
-                layer.set_activation(i, probabilities[i]);
             }
         }
         previous_activations = layer.get_activations();
@@ -135,6 +129,7 @@ std::vector<double> neural_network::forward(const std::vector<double>& input) {
 
     return layers.back().get_activations();
 }
+
 
 void neural_network::backward(std::vector<double> output_deltas) {
     layer* output_layer = &layers.back();
@@ -220,7 +215,7 @@ double neural_network::random_number(double min, double max) {
     return distribution(generator);
 }
 
-std::vector<double> neural_network::softmax( const std::vector<double>& values) {
+std::vector<double> neural_network::softmax(const std::vector<double>& values) {
     std::vector<double> probabilities(values.size());
 
     double max_value = *std::max_element(values.begin(), values.end());

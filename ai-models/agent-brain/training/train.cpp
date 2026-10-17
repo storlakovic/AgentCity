@@ -13,7 +13,7 @@
 #include "nlohmann/json.hpp"
 
 void train::train_agent() {
-    environment env(state(0.5, 0.5, 1.0, 0.5, 0.2, location::HOME));
+    environment env(state(0.5, 0.5, 1.0, 0.5, 0.2, 1.0, location::HOME));
     double best_avg_reward = evaluate_network(env);
     std::cout << "Initial evaluation | Avg reward: " << best_avg_reward << '\n';
 

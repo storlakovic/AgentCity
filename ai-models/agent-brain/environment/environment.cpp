@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <random>
 
+const double base_price = 0.2;
+const double base_wage = 0.3;
+
 environment::environment(state state) : m_state(state) {
 }
 
@@ -29,17 +32,18 @@ step_result environment::step(action selected_action) {
             break;
         }
 
-        case action::WORK:
+        case action::WORK: {
+            double wage = base_wage * (1.0 - 0.4 * (m_state.get_economy() - 1.0));
             if (m_state.get_energy() < 0.1) {
                 reward -= 0.2;
                 break;
             }
-            m_state.set_money(m_state.get_money() + 0.3);
+            m_state.set_money(m_state.get_money() + wage);
             m_state.set_energy(std::max(0.0, m_state.get_energy() - 0.1));
             m_state.set_hunger(std::min(1.0, m_state.get_hunger() + 0.1));
             reward += 0.5;
             break;
-
+        }
         case action::SLEEP:
             if (m_state.get_energy() >= 0.9) {
                 reward -= 0.3;
@@ -66,12 +70,13 @@ step_result environment::step(action selected_action) {
             break;
 
         case action::BUY_FOOD:
-            if (m_state.get_money() < 0.1) {
+            double price = base_price * (1.0 + 0.8 * (m_state.get_economy() - 1.0));
+            if (m_state.get_money() < price) {
                 reward -= 0.2;
                 break;
             }
             m_state.set_food(m_state.get_food() + 0.3);
-            m_state.set_money(std::max(0.0, m_state.get_money() - 0.1));
+            m_state.set_money(std::max(0.0, m_state.get_money() - price));
             reward += 0.4;
             break;
     }
@@ -141,6 +146,6 @@ state environment::reset() {
     std::uniform_int_distribution<int> distribution(0, 2);
     const location locations[] = {location::HOME, location::WORKPLACE, location::SHOP};
     const location start_location = locations[distribution(generator)];
-    m_state = state(neural_network::random_number(0.1, 0.4), neural_network::random_number(0.2, 0.4), 1.0, neural_network::random_number(0.5, 1.0), neural_network::random_number(0.2, 1.0), start_location);
+    m_state = state(neural_network::random_number(0.1, 0.4), neural_network::random_number(0.2, 0.4), 1.0, neural_network::random_number(0.5, 1.0), neural_network::random_number(0.2, 1.0), neural_network::random_number(1.2, 1.5), start_location);
     return m_state;
 }

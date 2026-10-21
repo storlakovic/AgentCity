@@ -10,7 +10,7 @@
 
 namespace {
     void run_model() {
-        environment env(state(0.5, 0.5, 1.0, 0.5, 0.2, 5.0, location::HOME));
+        environment env(state(0.5, 0.5, 1.0, 0.5, 0.2, 1.0, location::HOME));
         state current_state = env.reset();
         for (int step = 0; step < train::config::max_steps; step++) {
             auto output_values = neural_network::forward(current_state.to_vector());
@@ -30,7 +30,7 @@ namespace {
                     << " | Food: " << current_state.get_food()
                     << " | Economy: " << current_state.get_economy()
                     << " | Action: " << train::action_to_string(static_cast<std::size_t>(selected_action))
-                    << " | Reward: " << result.reward << '\n';
+                    << " | Reward: " << train::calculate_wellbeing_score(result.wellbeing) << '\n';
             current_state = result.new_state;
             if (result.done) break;
         }

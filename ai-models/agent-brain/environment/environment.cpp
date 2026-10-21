@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <random>
 
+#include "../training/train.hpp"
+
 const double base_price = 0.2;
 const double base_wage = 0.3;
 
@@ -10,7 +12,6 @@ environment::environment(state state) : m_state(state) {
 }
 
 step_result environment::step(action selected_action) {
-    double reward = 0.0;
     bool done = false;
     m_state.set_energy(std::max(0.0, m_state.get_energy() - 0.05));
     m_state.set_hunger(std::min(1.0, m_state.get_hunger() + 0.05));
@@ -18,97 +19,78 @@ step_result environment::step(action selected_action) {
         case action::GO_HOME:
         case action::GO_TO_WORKPLACE:
         case action::GO_TO_SHOP:
-            reward += move(selected_action);
+            move(selected_action);
             break;
         case action::EAT: {
             if (m_state.get_hunger() <= 0.2 || m_state.get_food() < 0.2) {
-                reward -= 0.3;
                 break;
             }
             double old_hunger = m_state.get_hunger();
             m_state.set_hunger(std::max(0.0, old_hunger - 0.4));
             m_state.set_food(std::max(0.0, m_state.get_food() - 0.2));
-            reward += 0.5;
             break;
         }
 
         case action::WORK: {
             double wage = base_wage * (1.0 - 0.4 * (m_state.get_economy() - 1.0));
             if (m_state.get_energy() < 0.1) {
-                reward -= 0.2;
                 break;
             }
             m_state.set_money(m_state.get_money() + wage);
             m_state.set_energy(std::max(0.0, m_state.get_energy() - 0.1));
             m_state.set_hunger(std::min(1.0, m_state.get_hunger() + 0.1));
-            reward += 0.5;
             break;
         }
         case action::SLEEP:
             if (m_state.get_energy() >= 0.9) {
-                reward -= 0.3;
                 break;
             }
             m_state.set_hunger(std::min(1.0, m_state.get_hunger() + 0.05));
             m_state.set_energy(std::min(1.0, m_state.get_energy() + 0.4));
-            reward += 0.5;
             break;
 
         case action::SPEND_MONEY:
             if (m_state.get_money() >= 0.2) {
                 m_state.set_money(m_state.get_money() - 0.2);
-                reward += 0.3;
             } else {
-                reward -= 0.3;
             }
             break;
 
         case action::STEAL:
             m_state.set_food(m_state.get_food() + 0.1);
             m_state.set_moral(std::max(0.0, m_state.get_moral() - 0.2));
-            reward -= 0.3;
             break;
 
         case action::BUY_FOOD:
             double price = base_price * (1.0 + 0.8 * (m_state.get_economy() - 1.0));
             if (m_state.get_money() < price) {
-                reward -= 0.2;
                 break;
             }
             m_state.set_food(m_state.get_food() + 0.3);
             m_state.set_money(std::max(0.0, m_state.get_money() - price));
-            reward += 0.4;
             break;
-    }
-    if (m_state.get_hunger() >= 0.9 || m_state.get_energy() <= 0.1) {
-        reward -= 1.0;
     }
     if (m_state.get_hunger() >= 1.0) {
         done = true;
-        reward -= 2.0;
     }
-    return {m_state, reward, done};
+    train::wellbeing wellbeing = train::calculate_wellbeing(m_state);
+    return {m_state, wellbeing, done};
 }
 
-double environment::move(action selected_action) {
-    double reward = 0.0;
+void environment::move(action selected_action) {
     switch (selected_action) {
         case action::GO_HOME:
             m_state.set_location(location::HOME);
-            reward += 0.05;
             break;
         case action::GO_TO_WORKPLACE:
             m_state.set_location(location::WORKPLACE);
-            reward += 0.05;
             break;
         case action::GO_TO_SHOP:
             m_state.set_location(location::SHOP);
-            reward += 0.05;
             break;
         default:
             break;
     }
-    return reward;
 }
 
 std::vector<bool> environment::get_action_mask(state& current_state) {

@@ -30,7 +30,7 @@ namespace {
                     << " | Food: " << current_state.get_food()
                     << " | Economy: " << current_state.get_economy()
                     << " | Action: " << train::action_to_string(static_cast<std::size_t>(selected_action))
-                    << " | Reward: " << train::calculate_wellbeing_score(result.wellbeing) << '\n';
+                    << " | Reward: " << result.reward << '\n';
             current_state = result.new_state;
             if (result.done) break;
         }

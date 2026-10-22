@@ -13,4 +13,5 @@ public:
     std::vector<bool> get_action_mask(state& current_state);
     state reset();
     step_result step(action selected_action);
+    void punish_theft();
 };

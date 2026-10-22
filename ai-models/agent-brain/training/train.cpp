@@ -1,5 +1,6 @@
 #include "train.hpp"
 
+#include <algorithm>
 #include <random>
 #include <iostream>
 
@@ -60,7 +61,7 @@ void train::train_agent() {
 train::episode_result train::collect_experiences(std::vector<experience>& trajectory, environment& env) {
     state current_state = env.reset();
     bool done = false;
-    double total_wellbeing_score = 0.0;
+    double total_reward = 0.0;
     std::vector<state> states;
     std::vector<action> selected_actions;
     std::vector<wellbeing> wellbeings;
@@ -84,23 +85,22 @@ train::episode_result train::collect_experiences(std::vector<experience>& trajec
         wellbeings.push_back(wellbeing);
 
         trajectory.push_back({
-            current_state.to_vector(), static_cast<std::size_t>(selected_action), wellbeing, 0.0, mask
+            current_state.to_vector(), static_cast<std::size_t>(selected_action), wellbeing, 0.0, mask, result.reward
         });
 
-        total_wellbeing_score += calculate_wellbeing_score(wellbeing);
+        total_reward += result.reward;
 
         current_state = result.new_state;
         done = result.done;
     }
-    return {total_wellbeing_score, !done, wellbeings, selected_actions, states};
+    return {total_reward, !done, wellbeings, selected_actions, states};
 }
 
 void train::update_network(std::vector<experience>& trajectory) {
     double return_value = 0.0;
 
     for (int i = static_cast<int>(trajectory.size()) - 1; i >= 0; i--) {
-        double score = calculate_wellbeing_score(trajectory[i].get_wellbeing());
-        return_value = score + config::gamma * return_value;
+        return_value = trajectory[i].get_reward() + config::gamma * return_value;
         trajectory[i].set_return_value(return_value);
     }
 
@@ -128,7 +128,7 @@ void train::update_network(std::vector<experience>& trajectory) {
 }
 
 double train::evaluate_network(environment& env) {
-    double score = 0.0;
+    double total_reward = 0.0;
     for (int i = 0; i < config::evaluation_episodes; i++) {
         state test_state = env.reset();
         for (int step = 0; step < config::max_steps; step++) {
@@ -141,14 +141,14 @@ double train::evaluate_network(environment& env) {
             }
             std::vector<double> probabilities = neural_network::softmax(output_values);
             step_result result = env.step(sample_action(probabilities));
-            score += calculate_wellbeing_score(result.wellbeing);
+            total_reward += result.reward;
             test_state = result.new_state;
             if (result.done) {
                 break;
             }
         }
     }
-    return score / config::evaluation_episodes;
+    return total_reward / config::evaluation_episodes;
 }
 
 std::string train::action_to_string(std::size_t action_index) {
@@ -187,9 +187,9 @@ train::wellbeing train::calculate_wellbeing(const state& s) {
         std::clamp(s.get_money(), 0.0, 1.0);
 
     w.happiness =
-        0.4 * w.health
-        + 0.3 * w.financial_stability
-        + 0.3 * s.get_moral();
+        0.5 * w.health
+        + 0.1 * w.financial_stability
+        + 0.4 * s.get_moral();
 
     w.social_wellbeing = 0.7 * w.health + 0.3 * w.financial_stability;
 
@@ -198,8 +198,8 @@ train::wellbeing train::calculate_wellbeing(const state& s) {
 
 double train::calculate_wellbeing_score(const wellbeing& w) {
     constexpr double HEALTH_WEIGHT = 0.50;
-    constexpr double HAPPINESS_WEIGHT = 0.30;
-    constexpr double FINANCIAL_WEIGHT = 0.20;
+    constexpr double HAPPINESS_WEIGHT = 0.35;
+    constexpr double FINANCIAL_WEIGHT = 0.15;
 
     return
         HEALTH_WEIGHT * w.health +

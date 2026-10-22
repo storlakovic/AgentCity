@@ -6,4 +6,5 @@ struct step_result {
     state new_state;
     train::wellbeing wellbeing;
     bool done;
+    double reward;
 };

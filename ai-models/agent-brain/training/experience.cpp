@@ -1,11 +1,16 @@
 #include "experience.hpp"
 
-experience::experience(std::vector<double> state, std::size_t action, train::wellbeing wellbeing, double return_value, std::vector<bool> mask) {
+experience::experience(std::vector<double> state, std::size_t action, train::wellbeing wellbeing, double return_value, std::vector<bool> mask, double reward) {
     m_state = state;
     m_action = action;
     m_wellbeing = wellbeing;
     m_return_value = return_value;
     m_mask = mask;
+    m_reward = reward;
+}
+
+double experience::get_reward() const {
+    return m_reward;
 }
 
 std::vector<double> experience::get_state() {

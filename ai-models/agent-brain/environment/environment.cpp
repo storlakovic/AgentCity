@@ -22,9 +22,6 @@ step_result environment::step(action selected_action) {
             move(selected_action);
             break;
         case action::EAT: {
-            if (m_state.get_hunger() <= 0.2 || m_state.get_food() < 0.2) {
-                break;
-            }
             double old_hunger = m_state.get_hunger();
             m_state.set_hunger(std::max(0.0, old_hunger - 0.4));
             m_state.set_food(std::max(0.0, m_state.get_food() - 0.2));
@@ -33,28 +30,24 @@ step_result environment::step(action selected_action) {
 
         case action::WORK: {
             double wage = base_wage * (1.0 - 0.4 * (m_state.get_economy() - 1.0));
-            if (m_state.get_energy() < 0.1) {
-                break;
-            }
             m_state.set_money(m_state.get_money() + wage);
             m_state.set_moral(std::min(1.0, m_state.get_moral() + 0.03));
             m_state.set_energy(std::max(0.0, m_state.get_energy() - 0.05));
-            m_state.set_hunger(std::min(1.0, m_state.get_hunger() + 0.1));
+            m_state.set_hunger(std::min(1.0, m_state.get_hunger() + 0.05));
             break;
         }
         case action::SLEEP:
-            if (m_state.get_energy() >= 0.9 || m_state.get_money() < 0.1) {
+            if (m_state.get_money() < 0.05) {
                 break;
             }
-            m_state.set_money(m_state.get_money() - 0.1);
+            m_state.set_money(m_state.get_money() - 0.05);
             m_state.set_hunger(std::min(1.0, m_state.get_hunger() + 0.05));
             m_state.set_energy(std::min(1.0, m_state.get_energy() + 0.6));
             break;
 
         case action::SPEND_MONEY:
-            if (m_state.get_money() >= 0.2) {
-                m_state.set_money(m_state.get_money() - 0.2);
-            }
+            m_state.set_money(m_state.get_money() - 0.2);
+            m_state.set_moral(std::min(1.0, m_state.get_moral() + 0.15));
             break;
 
         case action::STEAL:
@@ -69,9 +62,6 @@ step_result environment::step(action selected_action) {
 
         case action::BUY_FOOD:
             double price = base_price * (1.0 + 0.8 * (m_state.get_economy() - 1.0));
-            if (m_state.get_money() < price) {
-                break;
-            }
             m_state.set_food(m_state.get_food() + 0.6);
             m_state.set_money(std::max(0.0, m_state.get_money() - price));
             m_state.set_moral(std::min(1.0, m_state.get_moral() + 0.02));
@@ -79,10 +69,18 @@ step_result environment::step(action selected_action) {
     }
     const bool done = m_state.get_hunger() >= 1.0 || m_state.get_energy() < 0.1;
     const auto wellbeing = train::calculate_wellbeing(m_state);
-    const double theft_penalty = selected_action == action::STEAL ? 0.3 : 0.0;
-    const double reward = done
+    const double theft_penalty =
+    selected_action == action::STEAL ? 0.3 : 0.0;
+
+    double reward = 0;
+
+    if (m_state.get_hunger() >= 0.8 && selected_action != action::EAT) {
+        reward -= 1;
+    }
+
+    reward = done
         ? -15.0
-        : 1.0
+        :
             + 0.1 * train::calculate_wellbeing_score(wellbeing)
             - theft_penalty;
     return {m_state, wellbeing, done, reward};
@@ -111,33 +109,49 @@ void environment::punish_theft() {
 
 std::vector<bool> environment::get_action_mask(state& current_state) {
     std::vector mask(9, true);
-
+    double price = base_price * (1.0 + 0.8 * (m_state.get_economy() - 1.0));
+    mask[static_cast<std::size_t>(action::SPEND_MONEY)] = false;
     if (current_state.get_food() < 0.2) {
         mask[static_cast<std::size_t>(action::EAT)] = false;
     }
 
-    switch (current_state.get_location()) {
+    if (current_state.get_money() < price) {
+        mask[static_cast<std::size_t>(action::BUY_FOOD)] = false;
+    }
 
-        case location::HOME:
-            mask[static_cast<std::size_t>(action::WORK)] = false;
-            mask[static_cast<std::size_t>(action::STEAL)] = false;
-            mask[static_cast<std::size_t>(action::GO_HOME)] = false;
-            mask[static_cast<std::size_t>(action::BUY_FOOD)] = false;
-            break;
+    if (current_state.get_money() < 0.05) {
+        mask[static_cast<std::size_t>(action::SLEEP)] = false;
+    }
 
-        case location::WORKPLACE:
-            mask[static_cast<std::size_t>(action::SLEEP)] = false;
-            mask[static_cast<std::size_t>(action::EAT)] = false;
-            mask[static_cast<std::size_t>(action::STEAL)] = false;
-            mask[static_cast<std::size_t>(action::GO_TO_WORKPLACE)] = false;
-            mask[static_cast<std::size_t>(action::BUY_FOOD)] = false;
-            break;
+    if (current_state.get_money() < 0.2) {
+        mask[static_cast<std::size_t>(action::SPEND_MONEY)] = false;
+    }
 
-        case location::SHOP:
-            mask[static_cast<std::size_t>(action::WORK)] = false;
-            mask[static_cast<std::size_t>(action::SLEEP)] = false;
-            mask[static_cast<std::size_t>(action::GO_TO_SHOP)] = false;
-            break;
+    location current_location = current_state.get_location();
+
+    if (current_location == location::SHOP) {
+        mask[static_cast<std::size_t>(action::GO_TO_SHOP)] = false;
+    }
+
+    if (current_location == location::HOME) {
+        mask[static_cast<std::size_t>(action::GO_HOME)] = false;
+    }
+
+    if (current_location == location::WORKPLACE) {
+        mask[static_cast<std::size_t>(action::GO_TO_WORKPLACE)] = false;
+    }
+
+    if (current_location != location::HOME) {
+        mask[static_cast<std::size_t>(action::SLEEP)] = false;
+    }
+
+    if (current_location != location::SHOP) {
+        mask[static_cast<std::size_t>(action::BUY_FOOD)] = false;
+        mask[static_cast<std::size_t>(action::STEAL)] = false;
+    }
+
+    if (current_location != location::WORKPLACE) {
+        mask[static_cast<std::size_t>(action::WORK)] = false;
     }
 
     return mask;

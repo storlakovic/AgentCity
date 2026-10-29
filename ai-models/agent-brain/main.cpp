@@ -2,6 +2,7 @@
 #include <exception>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "brain/neural_network.hpp"
 #include "environment/environment.hpp"
@@ -13,7 +14,8 @@ namespace {
         environment env(state(0.5, 0.5, 1.0, 0.5, 0.2, 1.0, location::HOME));
         state current_state = env.reset();
         for (int step = 0; step < train::config::max_steps; step++) {
-            auto output_values = neural_network::forward(current_state.to_vector());
+            const auto network_output = neural_network::forward(current_state.to_vector());
+            std::vector<double> output_values = network_output;
             auto mask = env.get_action_mask(current_state);
             for (std::size_t i = 0; i < output_values.size(); i++) {
                 if (!mask[i]) {

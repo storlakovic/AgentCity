@@ -2,8 +2,9 @@
 
 namespace train::config {
     inline constexpr int epochs = 10000000;
-    inline constexpr double learning_rate = 0.0001;
-    inline constexpr double gamma = 0.95;
+    inline constexpr double learning_rate = 0.0005;
+    inline constexpr int batch_size = 32;
+    inline constexpr double gamma = 0.99;
     inline constexpr int max_steps = 100;
     inline constexpr int log_interval = 100;
     inline constexpr int evaluation_interval = 1000;

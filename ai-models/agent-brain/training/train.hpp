@@ -30,7 +30,7 @@ namespace train {
     wellbeing calculate_wellbeing(const state& s);
     std::string action_to_string(std::size_t action_index);
     episode_result collect_experiences(std::vector<experience>& trajectory, environment& env);
-    void update_network(std::vector<experience>& trajectory);
+    void update_network(std::vector<std::vector<experience>>& batch);
     double calculate_wellbeing_score(const wellbeing& w);
 
 };

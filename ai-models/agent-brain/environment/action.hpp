@@ -1,5 +1,4 @@
 #pragma once
-
 enum class action {
     EAT,
     WORK,
@@ -11,6 +10,3 @@ enum class action {
     GO_TO_WORKPLACE,
     GO_TO_SHOP
 };
-
-
-

@@ -252,9 +252,7 @@ double train::evaluate_network(environment& env) {
                 std::distance(probabilities.begin(), best_action)
             );
 
-            if (i == 0 &&
-                (test_state.get_hunger() > 0.8 ||
-                 test_state.get_energy() < 0.2)) {
+            if (i == 0) {
                 std::cout << "\n[Evaluation] Step: " << step + 1
                           << " | Hunger: " << test_state.get_hunger()
                           << " | Energy: " << test_state.get_energy()
@@ -274,6 +272,10 @@ double train::evaluate_network(environment& env) {
             }
 
             step_result result = env.step(selected_action);
+            if (i == 0) {
+                std::cout << "Reward: " << result.reward
+                          << " | Done: " << (result.done ? "yes" : "no") << '\n';
+            }
             total_reward += result.reward;
             test_state = result.new_state;
             if (result.done) {

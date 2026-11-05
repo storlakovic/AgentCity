@@ -7,6 +7,9 @@ class layer {
     std::vector<double> m_gradients;
     std::vector<double> m_biases;
     std::vector<double> m_deltas;
+    std::vector<double> m_weight_mean, m_weight_square;
+    std::vector<double> m_bias_mean, m_bias_square;
+    size_t m_adam_step = 0;
     size_t m_input_count;
     size_t m_neuron_count;
 
@@ -17,6 +20,7 @@ class layer {
     void init_biases(unsigned bias_count);
     void init_gradients(unsigned gradient_count);
     void init_deltas(unsigned deltas_count);
+    void apply_gradients(double learning_rate);
     std::vector<double> get_weights();
     std::vector<double> get_activations();
     void set_gradients(const std::vector<double>& gradients);

@@ -4,6 +4,7 @@
 #include <random>
 
 #include "../training/train.hpp"
+#include "../training/config.hpp"
 
 const double base_price = 0.2;
 const double base_wage = 0.5;
@@ -13,6 +14,15 @@ environment::environment(state state) : m_state(state) {
 }
 
 step_result environment::step(action selected_action) {
+    const auto potential = [](const state& s) {
+        const double money = std::max(0.0, s.get_money());
+        const double food = std::max(0.0, s.get_food());
+        return 2.0 * (s.get_energy() - s.get_hunger())
+            + 0.5 * money / (money + 0.3)
+            + 0.5 * food / (food + 0.4)
+            + 0.1 * s.get_moral();
+    };
+    const double potential_before = potential(m_state);
     m_state.set_energy(std::max(0.0, m_state.get_energy() - 0.05));
     m_state.set_hunger(std::min(1.0, m_state.get_hunger() + 0.05));
     switch (selected_action) {
@@ -69,20 +79,11 @@ step_result environment::step(action selected_action) {
     }
     const bool done = m_state.get_hunger() >= 1.0 || m_state.get_energy() < 0.1;
     const auto wellbeing = train::calculate_wellbeing(m_state);
-    const double theft_penalty =
-    selected_action == action::STEAL ? 0.3 : 0.0;
-
-    double reward = 0;
-
-    if (m_state.get_hunger() >= 0.8 && selected_action != action::EAT) {
-        reward -= 1;
-    }
-
-    reward = done
-        ? -15.0
-        :
-            + 0.1 * train::calculate_wellbeing_score(wellbeing)
-            - theft_penalty;
+    const double potential_after = done ? 0.0 : potential(m_state);
+    const double theft_penalty = selected_action == action::STEAL ? 0.03 : 0.0;
+    const double reward = (done ? -15.0 : 0.3)
+        + train::config::gamma * potential_after - potential_before
+        - theft_penalty;
     return {m_state, wellbeing, done, reward};
 }
 

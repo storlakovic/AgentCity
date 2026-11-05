@@ -176,16 +176,7 @@ void neural_network::backward(std::vector<double> output_deltas) {
 
 void neural_network::update_weights(double learning_rate) {
     for (auto& current_layer : layers) {
-        for (std::size_t neuron = 0; neuron < current_layer.get_neuron_count(); neuron++) {
-            for (std::size_t input = 0; input < current_layer.get_input_count(); input++) {
-                std::size_t index = input + neuron * current_layer.get_input_count();
-                double new_weight = current_layer.get_weight_at(index) - learning_rate * current_layer.get_gradient_at(index);
-                current_layer.set_weight_at(index, new_weight);
-            }
-
-            double new_bias = current_layer.get_bias_at(neuron) - learning_rate * current_layer.get_delta_at(neuron);
-            current_layer.set_bias_at(neuron, new_bias);
-        }
+        current_layer.apply_gradients(learning_rate);
     }
 }
 

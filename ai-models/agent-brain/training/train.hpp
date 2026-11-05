@@ -25,7 +25,7 @@ namespace train {
     };
 
     void train_agent();
-    double evaluate_network(environment& env);
+    double evaluate_network(environment& env, bool emergency = false);
     action sample_action(const std::vector<double>& probabilities);
     wellbeing calculate_wellbeing(const state& s);
     std::string action_to_string(std::size_t action_index);

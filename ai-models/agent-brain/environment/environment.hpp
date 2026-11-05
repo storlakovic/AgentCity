@@ -11,7 +11,7 @@ public:
     environment(state state);
     void move(action selected_action);
     std::vector<bool> get_action_mask(state& current_state);
-    state reset();
+    state reset(bool emergency = false);
     step_result step(action selected_action);
     void punish_theft();
 };

@@ -15,59 +15,63 @@
 #include "experience.hpp"
 #include "nlohmann/json.hpp"
 
+namespace {
+    struct episode_metrics {
+        double reward = 0.0;
+        std::size_t episodes = 0, steps = 0, survivors = 0;
+        void add(double value, std::size_t length, bool survived) {
+            reward += value;
+            steps += length;
+            survivors += survived;
+            ++episodes;
+        }
+        void print(const char* label) const {
+            if (episodes == 0) return;
+            std::cout << label << " | Episodes: " << episodes
+                      << " | Avg reward: " << reward / episodes
+                      << " | Avg steps: " << static_cast<double>(steps) / episodes
+                      << " | Survival: " << 100.0 * survivors / episodes
+                      << "% (" << survivors << '/' << episodes << ")\n";
+        }
+    };
+}
+
 void train::train_agent() {
     environment env(state(0.5, 0.5, 1.0, 0.5, 0.2, 1.0, location::HOME));
     std::vector<std::vector<experience>> batch;
     batch.reserve(config::batch_size);
+    episode_metrics metrics;
+    std::cout << "Initial evaluation\n";
     double best_avg_reward = evaluate_network(env);
-    std::cout << "Initial evaluation | Avg reward: " << best_avg_reward << '\n';
+    evaluate_network(env, true);
 
-    for (int epoch = 0; epoch < config::epochs; epoch++) {
+    for (int epoch = 0; epoch < config::epochs; ++epoch) {
         std::vector<experience> trajectory;
-        auto result = collect_experiences(trajectory, env);
+        const auto result = collect_experiences(trajectory, env);
+        metrics.add(result.reward, trajectory.size(), result.survived);
         batch.push_back(std::move(trajectory));
         if (batch.size() == config::batch_size || epoch + 1 == config::epochs) {
             update_network(batch);
+            std::cout << "Episode " << epoch + 1 << ' ';
+            metrics.print("[Training batch]");
+            metrics = {};
             batch.clear();
         }
-        if ((epoch + 1) % config::log_interval == 0) {
-            std::cout << "Episode " << epoch + 1
-                      << " | Reward: " << result.reward
-                      << " | Survived: " << (result.survived ? "yes" : "no")
-                      << '\n';
-
-            for (std::size_t i = 0; i < result.states.size(); i++) {
-                std::cout << "State " << i << ": ";
-
-                for (double value : result.states[i].to_vector()) {
-                    std::cout << value << ' ';
-                }
-
-                if (i < result.actions.size()) {
-                    std::cout << "| Action: "
-                              << action_to_string(
-                                     static_cast<std::size_t>(result.actions[i]));
-                }
-
-                std::cout << '\n';
-            }
-        }
         if ((epoch + 1) % config::evaluation_interval == 0) {
+            std::cout << "Evaluation after episode " << epoch + 1 << '\n';
             const double avg_reward = evaluate_network(env);
-            std::cout << "Evaluation " << epoch + 1
-                      << " | Avg reward: " << avg_reward << '\n';
+            evaluate_network(env, true);
             if (avg_reward > best_avg_reward) {
                 neural_network::save(config::checkpoint_path);
                 best_avg_reward = avg_reward;
                 std::cout << "Saved best model: " << config::checkpoint_path
-                          << " | Avg reward: " << best_avg_reward << '\n';
+                          << " | Normal avg reward: " << best_avg_reward << '\n';
             }
         }
     }
 }
-
 train::episode_result train::collect_experiences(std::vector<experience>& trajectory, environment& env) {
-    state current_state = env.reset();
+    state current_state = env.reset(neural_network::random_number(0.0, 1.0) < 0.1);
     bool done = false;
     double total_reward = 0.0;
     std::vector<state> states;
@@ -229,63 +233,33 @@ void train::update_network(std::vector<std::vector<experience>>& batch) {
     }
 }
 
-double train::evaluate_network(environment& env) {
-    double total_reward = 0.0;
-    for (int i = 0; i < config::evaluation_episodes; i++) {
-        state test_state = env.reset();
-        for (int step = 0; step < config::max_steps; step++) {
-            auto mask = env.get_action_mask(test_state);
-            const auto network_output = neural_network::forward(test_state.to_vector());
-            std::vector<double> output_values = network_output;
-            for (std::size_t i = 0; i < output_values.size(); i++) {
-                if (!mask[i]) {
-                    output_values[i] = -1e9;
-                }
+double train::evaluate_network(environment& env, bool emergency) {
+    episode_metrics metrics;
+    for (int i = 0; i < config::evaluation_episodes; ++i) {
+        state test_state = env.reset(emergency);
+        double total_reward = 0.0;
+        std::size_t steps = 0;
+        bool done = false;
+        for (int step = 0; step < config::max_steps; ++step) {
+            const auto mask = env.get_action_mask(test_state);
+            auto logits = neural_network::forward(test_state.to_vector());
+            for (std::size_t a = 0; a < logits.size(); ++a) {
+                if (!mask[a]) logits[a] = -1e9;
             }
-            std::vector<double> probabilities = neural_network::softmax(output_values);
-            const auto best_action = std::max_element(
-                probabilities.begin(),
-                probabilities.end()
-            );
-
-            const action selected_action = static_cast<action>(
-                std::distance(probabilities.begin(), best_action)
-            );
-
-            if (i == 0) {
-                std::cout << "\n[Evaluation] Step: " << step + 1
-                          << " | Hunger: " << test_state.get_hunger()
-                          << " | Energy: " << test_state.get_energy()
-                          << " | Money: " << test_state.get_money()
-                          << " | Food: " << test_state.get_food()
-                          << '\n';
-
-                for (std::size_t a = 0; a < probabilities.size(); ++a) {
-                    if (mask[a]) {
-                        std::cout << action_to_string(a)
-                                  << ": " << probabilities[a] * 100.0 << "%\n";
-                    }
-                }
-                std::cout << "Selected: "
-                          << action_to_string(static_cast<std::size_t>(selected_action))
-                          << '\n';
-            }
-
-            step_result result = env.step(selected_action);
-            if (i == 0) {
-                std::cout << "Reward: " << result.reward
-                          << " | Done: " << (result.done ? "yes" : "no") << '\n';
-            }
+            const auto selected_action = static_cast<action>(std::distance(
+                logits.begin(), std::max_element(logits.begin(), logits.end())));
+            const auto result = env.step(selected_action);
             total_reward += result.reward;
+            ++steps;
             test_state = result.new_state;
-            if (result.done) {
-                break;
-            }
+            done = result.done;
+            if (done) break;
         }
+        metrics.add(total_reward, steps, !done);
     }
-    return total_reward / config::evaluation_episodes;
+    metrics.print(emergency ? "[Evaluation emergency]" : "[Evaluation normal]");
+    return metrics.episodes == 0 ? 0.0 : metrics.reward / metrics.episodes;
 }
-
 std::string train::action_to_string(std::size_t action_index) {
     switch (static_cast<action>(action_index)) {
         case action::EAT:

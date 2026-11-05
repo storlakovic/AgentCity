@@ -22,6 +22,12 @@ step_result environment::step(action selected_action) {
             + 0.5 * food / (food + 0.4)
             + 0.1 * s.get_moral();
     };
+    const bool is_movement =
+    selected_action == action::GO_HOME ||
+    selected_action == action::GO_TO_WORKPLACE ||
+    selected_action == action::GO_TO_SHOP;
+    const double movement_penalty = is_movement ? 0.05 : 0.0;
+
     const double potential_before = potential(m_state);
     m_state.set_energy(std::max(0.0, m_state.get_energy() - 0.05));
     m_state.set_hunger(std::min(1.0, m_state.get_hunger() + 0.05));
@@ -66,7 +72,7 @@ step_result environment::step(action selected_action) {
                 punish_theft();
                 break;
             }
-            m_state.set_food(m_state.get_food() + 0.1);
+            m_state.set_food(m_state.get_food() + 0.2);
             m_state.set_moral(std::max(0.0, m_state.get_moral() - 0.2));
             break;
 
@@ -83,7 +89,8 @@ step_result environment::step(action selected_action) {
     const double theft_penalty = selected_action == action::STEAL ? 0.03 : 0.0;
     const double reward = (done ? -15.0 : 0.3)
         + train::config::gamma * potential_after - potential_before
-        - theft_penalty;
+        - theft_penalty
+        - movement_penalty;
     return {m_state, wellbeing, done, reward};
 }
 
@@ -158,12 +165,20 @@ std::vector<bool> environment::get_action_mask(state& current_state) {
     return mask;
 }
 
-state environment::reset() {
+state environment::reset(bool emergency) {
     theft_count = 0;
+    if (emergency) {
+        m_state = state(neural_network::random_number(0.4, 0.6),
+                        neural_network::random_number(0.02, 0.10), 1.0,
+                        neural_network::random_number(0.7, 1.0),
+                        neural_network::random_number(0.0, 0.10),
+                        neural_network::random_number(2.5, 5.0), location::SHOP);
+        return m_state;
+    }
     static std::mt19937 generator(std::random_device{}());
     std::uniform_int_distribution<int> distribution(0, 2);
     const location locations[] = {location::HOME, location::WORKPLACE, location::SHOP};
     const location start_location = locations[distribution(generator)];
-    m_state = state(neural_network::random_number(0.1, 0.4), neural_network::random_number(0.2, 0.4), 1.0, neural_network::random_number(0.5, 1.0), neural_network::random_number(0.2, 1.0), neural_network::random_number(1.2, 1.5), start_location);
+    m_state = state(neural_network::random_number(0.1, 0.4), neural_network::random_number(0.2, 0.4), 1.0, neural_network::random_number(0.5, 1.0), neural_network::random_number(0.2, 1.0), neural_network::random_number(2.2, 3.0), start_location);
     return m_state;
 }
